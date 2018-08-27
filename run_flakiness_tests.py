@@ -1,23 +1,23 @@
 #!/usr/bin/env python
+"""Run artifact tests and collect results with a focus on flakiness."""
 
 
-"""Run artifact tests and collect results with a focus on flakiness.
-
-@author Eric Horton
-@author Kai Presler-Marshall
-"""
-
-
-# Imports
+# Imports - builtin
 from datetime import datetime
 from itertools import chain
 from pathlib import Path
 from xml.etree import ElementTree
 import logging
-import numpy as np
-import os
-import pandas
 import subprocess
+
+
+# Imports - third-party
+import numpy as np
+import pandas
+
+
+# Module metadata
+__author__ = 'Eric Horton, Kai Presler-Marshall'
 
 
 # Constants
@@ -34,9 +34,14 @@ MVN = 'mvn'
 DF_COLUMNS = ['execution', 'classname', 'name', 'time', 'failed']
 BUILD_COLUMNS = ['id', 'time']
 TEST_CMD = [MVN + ' clean verify -DskipSurefireTests']
-DROP_DB_CMD = ['mysql'+ ' -u' + ' root'+ ' -e' + " 'DROP DATABASE IF EXISTS iTrust2'"]
-BUILD_DB_CMD = [MVN + ' -f ' + str(ITRUST2) + '/pom-data.xml clean process-test-classes']
+DROP_DB_CMD = [
+    'mysql' + ' -u' + ' root' + ' -e' + " 'DROP DATABASE IF EXISTS iTrust2'"
+]
+BUILD_DB_CMD = [
+    MVN + ' -f ' + str(ITRUST2) + '/pom-data.xml clean process-test-classes'
+]
 CLEAN_CMD = [MVN + ' clean']
+
 
 # Configure logging
 Path.mkdir(LOG, exist_ok=True)
@@ -63,10 +68,10 @@ def run_tests(artifact):
     """
 
     # Compute artifact stdout/stderr logfile names
-    build_id = datetime.now().isoformat().replace(':','_');
+    build_id = datetime.now().isoformat().replace(':', '_')
     stdout_log = LOG / '{}.{}.stdout.log'.format(artifact.stem, build_id)
     stderr_log = LOG / '{}.{}.stderr.log'.format(artifact.stem, build_id)
-	
+
     # Begin context with log files
     with open(stdout_log, 'wb+') as stdout, open(stderr_log, 'wb+') as stderr:
 
@@ -75,7 +80,7 @@ def run_tests(artifact):
         subprocess.run(DROP_DB_CMD, shell=True)
 
         logger.info('Rebuilding database with `{}`'.format(BUILD_DB_CMD))
-        subprocess.run(BUILD_DB_CMD, shell=True);
+        subprocess.run(BUILD_DB_CMD, shell=True)
 
         # Spawn test process. Pipe stdout and stderr to file.
         logger.info('Running `{}` for artifact {}'.format(TEST_CMD, artifact))
@@ -108,14 +113,19 @@ def run_tests(artifact):
             end_time = datetime.now()
 
         # Log finish
-        logger.info('Tests finished with exit status {}.'.format(proc.returncode))
+        logger.info('Tests finished with exit status {}.'.format(
+            proc.returncode
+        ))
 
         # Scrape test results
         test_results = scrape_results(artifact, build_id)
 
         # Compute build stats
         build_time = end_time - start_time
-        build_stats = pandas.DataFrame([[build_id, build_time]], columns=BUILD_COLUMNS)
+        build_stats = pandas.DataFrame(
+            [[build_id, build_time]],
+            columns=BUILD_COLUMNS
+        )
 
         return test_results, build_stats
 
@@ -168,7 +178,10 @@ def scrape_results(artifact, execution):
                     testcase.attrib['classname'],
                     testcase.attrib['name'],
                     testcase.attrib['time'],
-                    np.any(list(map(lambda e: e.tag == 'failure' or e.tag == 'error', testcase)))
+                    np.any(list(map(
+                        lambda e: e.tag == 'failure' or e.tag == 'error',
+                        testcase
+                    )))
                 ]
                 for result_set in results
                 for testcase in result_set
@@ -200,27 +213,39 @@ def main():
     # Run tests
     for i in range(EXECUTIONS):
 
-        logger.info('Starting execution {} of artifact {}.'.format(i + 1, ITRUST2.stem))
+        logger.info('Starting execution {} of artifact {}.'.format(
+            i + 1,
+            ITRUST2.stem
+        ))
         execution_results, execution_stats = run_tests(ITRUST2)
         results = pandas.concat([results, execution_results])
         build_stats = pandas.concat([build_stats, execution_stats])
 
     # Get all failing test cases
-    failing = results[results['failed'].astype('str') == 'True'][['execution', 'classname', 'name', 'time']]
+    failing = results[results['failed'].astype('str') == 'True'][[
+        'execution', 'classname', 'name', 'time'
+    ]]
 
     # Determine which tests are flaky, and how many executions failed
     def is_flaky(s):
-        return (s.astype('str') == 'True').any() and not (s.astype('str') == 'True').all()
+        return (
+            (s.astype('str') == 'True').any()
+            and not (s.astype('str') == 'True').all()
+        )
 
     def num_failing(s):
         return len(s[s.astype('str') == 'True'])
 
-    flaky = results.drop(columns=['execution']).groupby(['classname', 'name'], as_index=False)['failed'].agg([
-        is_flaky, num_failing
-    ]).reset_index()
+    flaky = (
+        results.drop(columns=['execution'])
+        .groupby(['classname', 'name'], as_index=False)['failed']
+        .agg([is_flaky, num_failing]).reset_index()
+    )
 
     # Subset to only the flaky tests
-    flaky = flaky[flaky['is_flaky'].astype('str') == 'True'][['classname', 'name', 'num_failing']]
+    flaky = flaky[flaky['is_flaky'].astype('str') == 'True'][[
+        'classname', 'name', 'num_failing'
+    ]]
 
     # With print context
     context = pandas.option_context(
@@ -236,8 +261,12 @@ def main():
         logger.info('Build Stats:\n' + str(build_stats) + '\n')
         build_stats.to_csv(STATS_FILE, index=False)
 
-        logger.info('Average Build Time: {}'.format(build_stats['time'].mean()))
-        logger.info('Build Time Standard Deviation: {}\n'.format(build_stats['time'].std()))
+        logger.info('Average Build Time: {}'.format(
+            build_stats['time'].mean()
+        ))
+        logger.info('Build Time Standard Deviation: {}\n'.format(
+            build_stats['time'].std()
+        ))
 
         # Log failing test cases, if any
         if len(failing):
