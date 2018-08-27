@@ -9,7 +9,7 @@ This repository contains the Python script that we used to run and analyze the r
 
 Wait Wait needs a few basic things to run.
 
-* Python 3.6 + Pip
+* Python 3.7 + Pip
 * Java SE Development Kit (JDK) 1.8.x
 * Maven 3.3.3
 * MySQL 5.7 or MariaDB 10.2+

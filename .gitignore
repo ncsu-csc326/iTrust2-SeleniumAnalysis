@@ -1,0 +1,12 @@
+# IDE
+.idea/
+*.iml
+.ropeproject/
+
+# Python
+*.pyc
+__pycache__/
+
+# Log files
+log/
+*.log
